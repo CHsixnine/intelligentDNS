@@ -1,19 +1,6 @@
 import socket
 from threading import Thread
 from scapy.all import *
-# import dnslib
-from dnslib.server import *
-
-# from dnslib import QTYPE, RR, DNSLabel, dns
-# from dnslib.proxy import ProxyResolver as LibProxyResolver
-# from dnslib.server import BaseResolver as LibBaseResolver, DNSServer as LibDNSServer
-# import datetime
-# import sys
-# import time
-# import threading
-# import traceback
-# from dnslib import *
-
 
 class IntelligentDNS():
     def __init__(self):
@@ -22,6 +9,11 @@ class IntelligentDNS():
         self.DNS_PORT = 53
         self.dns_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.dns_socket.bind((self.DNS_IP, self.DNS_PORT)) 
+        self.UE_DNS_MAPPING = {
+            "domain": ["www.h51.com.", "www.h57.com.", "www.h51.com."],
+            "dns_record": ["10.20.1.51", "10.20.1.57", "10.20.1.57"],
+            "UE": ["10.20.1.58", "10.0.0.203", "10.0.0.203"]
+        }
         
     def run(self):
         t = Thread(target=self.__dns_server__)
@@ -30,35 +22,36 @@ class IntelligentDNS():
     def __dns_server__(self):
         while True:
             data, address = self.dns_socket.recvfrom(self.BUFFER_SIZE)
+            if address[0] in self.UE_DNS_MAPPING["UE"]:
+                print(address[0])
             data = DNS(data)
-            print("-"*50)
-            print(data.show())
-            answer = DNSRR(rrname=b'www.example.com', ttl=60000, rdlen=4, rdata=b'10.20.1.54')
+            answer_record = self.__search_record__(domain_name = data.qd.qname.decode('utf-8'), source_ip = address[0])
+            answer = DNSRR(rrname=data.qd.qname, ttl=5, rdlen=4, rdata=answer_record)
             data.ancount = 1
             data.qr=1
             data.ancount = 1
             data.an=answer
             self.dns_socket.sendto(bytes(data), address)
-            # print(answer[DNS].summary())
+   
+    def __search_record__(self, source_ip, domain_name):
+        ue_dns_mapping = {"domain": [], "dns_record": [], "UE": []}
+        try:
+            for domain in range(len(self.UE_DNS_MAPPING["domain"])):
+                if self.UE_DNS_MAPPING["domain"][domain] == domain_name:
+                    ue_dns_mapping["domain"].append(self.UE_DNS_MAPPING["domain"][domain])
+                    ue_dns_mapping["dns_record"].append(self.UE_DNS_MAPPING["dns_record"][domain])
+                    ue_dns_mapping["UE"].append(self.UE_DNS_MAPPING["UE"][domain])
+            for ue in range(len(ue_dns_mapping["UE"])):
+                if source_ip == ue_dns_mapping["UE"][ue]:
+                    return ue_dns_mapping["dns_record"][ue]
+            return ue_dns_mapping["dns_record"][0]
+        except:
+            pass
 
-# class TestResolver:
-#     def resolve(self,request,handler):
-#         reply = request.reply()
-#         reply.add_answer(*RR.fromZone("www.example.com IN A 10.0.0.218"))
-#         return reply    
 
 def main():
     dns_server = IntelligentDNS()
     dns_server.run()
-
-    
-    # resolver = TestResolver()
-    # logger = DNSLogger(prefix=False)
-    # server = DNSServer(resolver,port=53,address="10.0.0.218", logger=logger)
-    # server.start_thread()
-    # server.start()
-
-
 
 if __name__ == '__main__':
     main()
